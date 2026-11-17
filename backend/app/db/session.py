@@ -3,7 +3,17 @@ from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import text
 from app.core.config import settings
 
-engine = create_async_engine(settings.DATABASE_URL, echo=False, pool_pre_ping=True)
+connect_args = {}
+if "supabase" in settings.DATABASE_URL.lower() or ":6543" in settings.DATABASE_URL or "pooler" in settings.DATABASE_URL.lower():
+    # Supavisor / PgBouncer pooler compatibility for asyncpg
+    connect_args["statement_cache_size"] = 0
+
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    connect_args=connect_args,
+)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
