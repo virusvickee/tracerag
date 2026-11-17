@@ -264,76 +264,109 @@ export default function ObservatoryDashboardPage({
         </div>
       )}
 
-      {/* Test Cases Comparison Table */}
-      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70">
-        <div className="border-b border-slate-800 px-4 py-3">
-          <h3 className="text-sm font-semibold text-white">
-            Golden Dataset Traces (Click any row to open Split-Screen Grounding Diff)
+      {/* Empty State when no evaluation runs yet */}
+      {(!results || results.cases.length === 0) && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/60 p-12 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400">
+            <Layers className="h-7 w-7" />
+          </div>
+          <h3 className="mt-4 text-base font-semibold text-white">
+            No Evaluation Runs Yet
           </h3>
+          <p className="mt-2 max-w-md text-xs text-slate-400 leading-relaxed">
+            This workspace is ready for your data. Upload your documents, configure two or more retrieval pipelines, and run an A/B evaluation to inspect Pareto curves and hallucination claim diffs.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href={`/observatory/${params.workspaceId}/datasets`}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-xs font-medium text-white transition hover:bg-slate-700"
+            >
+              <Database className="h-4 w-4 text-indigo-400" />
+              1. Upload Documents & Generate Q&A
+            </Link>
+            <Link
+              href={`/observatory/${params.workspaceId}/pipelines`}
+              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow transition hover:bg-indigo-500"
+            >
+              <Layers className="h-4 w-4" />
+              2. Configure A/B Pipelines
+            </Link>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-slate-800 bg-slate-950/60 text-slate-400">
-              <tr>
-                <th className="px-4 py-3">Difficulty</th>
-                <th className="px-4 py-3">Test Question</th>
-                <th className="px-4 py-3">Pipeline A Verdict</th>
-                <th className="px-4 py-3">Pipeline B Verdict</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/80">
-              {results?.cases.map((tc) => {
-                const catA = tc.traces.pipeline_a?.failure_category || "PENDING";
-                const catB = tc.traces.pipeline_b?.failure_category || "PENDING";
-                return (
-                  <tr
-                    key={tc.test_case_id}
-                    onClick={() => setSelectedTestCaseId(tc.test_case_id)}
-                    className="cursor-pointer transition hover:bg-slate-800/50"
-                  >
-                    <td className="px-4 py-3 font-mono text-[11px] text-indigo-300">
-                      {tc.difficulty_tag}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-slate-100">{tc.question}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          catA === "PASS"
-                            ? "bg-emerald-500/15 text-emerald-400"
-                            : "bg-rose-500/15 text-rose-400"
-                        }`}
-                      >
-                        {catA === "PASS" ? (
-                          <CheckCircle2 className="h-3 w-3" />
-                        ) : (
-                          <AlertTriangle className="h-3 w-3" />
-                        )}
-                        {catA}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          catB === "PASS"
-                            ? "bg-emerald-500/15 text-emerald-400"
-                            : "bg-rose-500/15 text-rose-400"
-                        }`}
-                      >
-                        {catB === "PASS" ? (
-                          <CheckCircle2 className="h-3 w-3" />
-                        ) : (
-                          <AlertTriangle className="h-3 w-3" />
-                        )}
-                        {catB}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      )}
+
+      {/* Test Cases Comparison Table */}
+      {results && results.cases.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70">
+          <div className="border-b border-slate-800 px-4 py-3">
+            <h3 className="text-sm font-semibold text-white">
+              Golden Dataset Traces (Click any row to open Split-Screen Grounding Diff)
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-slate-800 bg-slate-950/60 text-slate-400">
+                <tr>
+                  <th className="px-4 py-3">Difficulty</th>
+                  <th className="px-4 py-3">Test Question</th>
+                  <th className="px-4 py-3">Pipeline A Verdict</th>
+                  <th className="px-4 py-3">Pipeline B Verdict</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/80">
+                {results.cases.map((tc) => {
+                  const catA = tc.traces.pipeline_a?.failure_category || "PENDING";
+                  const catB = tc.traces.pipeline_b?.failure_category || "PENDING";
+                  return (
+                    <tr
+                      key={tc.test_case_id}
+                      onClick={() => setSelectedTestCaseId(tc.test_case_id)}
+                      className="cursor-pointer transition hover:bg-slate-800/50"
+                    >
+                      <td className="px-4 py-3 font-mono text-[11px] text-indigo-300">
+                        {tc.difficulty_tag}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-100">{tc.question}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                            catA === "PASS"
+                              ? "bg-emerald-500/15 text-emerald-400"
+                              : "bg-rose-500/15 text-rose-400"
+                          }`}
+                        >
+                          {catA === "PASS" ? (
+                            <CheckCircle2 className="h-3 w-3" />
+                          ) : (
+                            <AlertTriangle className="h-3 w-3" />
+                          )}
+                          {catA}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                            catB === "PASS"
+                              ? "bg-emerald-500/15 text-emerald-400"
+                              : "bg-rose-500/15 text-rose-400"
+                          }`}
+                        >
+                          {catB === "PASS" ? (
+                            <CheckCircle2 className="h-3 w-3" />
+                          ) : (
+                            <AlertTriangle className="h-3 w-3" />
+                          )}
+                          {catB}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Split-Screen Trace Inspector Drawer */}
       <TraceDiffDrawer testCase={activeCase} onClose={() => setSelectedTestCaseId(null)} />

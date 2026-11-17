@@ -504,6 +504,26 @@ export default function PipelinesManagementPage({
         </div>
       )}
 
+      {/* Empty State when no pipelines exist */}
+      {pipelines.length === 0 && !showCreateForm && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/60 p-12 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
+            <Layers className="h-6 w-6" />
+          </div>
+          <h3 className="mt-4 text-base font-semibold text-white">No Pipelines Created Yet</h3>
+          <p className="mt-1 max-w-md text-xs text-slate-400">
+            Create at least two RAG pipelines (such as Recursive Chunking + Hybrid Retrieval vs. Fixed Chunking + Dense Retrieval) to run comparative A/B evaluations.
+          </p>
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-indigo-500"
+          >
+            <Plus className="h-4 w-4" />
+            Create First Pipeline
+          </button>
+        </div>
+      )}
+
       {/* Existing Pipelines Grid */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {pipelines.map((pipe) => {

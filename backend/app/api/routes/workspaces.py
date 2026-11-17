@@ -141,6 +141,48 @@ async def create_workspace(payload: WorkspaceCreate, db: AsyncSession = Depends(
     return {"id": str(ws.id), "name": ws.name}
 
 
+@router.delete("/workspaces/{workspace_id}")
+async def delete_workspace(workspace_id: UUID, db: AsyncSession = Depends(get_db)):
+    ws = await db.get(Workspace, workspace_id)
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    await db.delete(ws)
+    await db.commit()
+    return {"status": "deleted", "id": str(workspace_id)}
+
+
+@router.post("/workspaces/purge-mock-data")
+async def purge_mock_data(db: AsyncSession = Depends(get_db)):
+    """Removes all demo presets and mock workspaces from the database."""
+    res = await db.execute(select(Workspace).where(Workspace.is_demo_preset == True))
+    demo_workspaces = res.scalars().all()
+    count = len(demo_workspaces)
+    for ws in demo_workspaces:
+        await db.delete(ws)
+    await db.commit()
+    return {
+        "status": "purged",
+        "deleted_workspaces_count": count,
+        "message": f"Successfully purged {count} demo workspace(s) and all associated mock data.",
+    }
+
+
+@router.post("/workspaces/reset-all")
+async def reset_all_data(db: AsyncSession = Depends(get_db)):
+    """Wipes all workspaces, documents, test cases, and evaluation results for a clean slate."""
+    res = await db.execute(select(Workspace))
+    all_workspaces = res.scalars().all()
+    count = len(all_workspaces)
+    for ws in all_workspaces:
+        await db.delete(ws)
+    await db.commit()
+    return {
+        "status": "reset",
+        "deleted_workspaces_count": count,
+        "message": "All workspace data successfully wiped clean.",
+    }
+
+
 # ---------------------------------------------------------
 # Documents
 # ---------------------------------------------------------

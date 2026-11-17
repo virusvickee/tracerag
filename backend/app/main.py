@@ -10,7 +10,7 @@ from app.api.routes import experiments, workspaces
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    await seed_demo_workspace()
+    # Mock data seeding disabled for clean production mode
     yield
 
 
