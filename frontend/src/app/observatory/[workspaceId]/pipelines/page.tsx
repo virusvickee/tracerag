@@ -164,7 +164,12 @@ export default function PipelinesManagementPage({
   };
 
   if (loading) {
-    return <div className="py-20 text-center text-sm text-slate-400">Loading pipelines...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-24 text-slate-400">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+        <span className="text-xs font-medium">Loading pipeline configurations...</span>
+      </div>
+    );
   }
 
   return (
@@ -172,8 +177,8 @@ export default function PipelinesManagementPage({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white">RAG Pipeline Profiles</h1>
-          <p className="text-xs text-slate-400">
+          <h1 className="text-xl font-bold tracking-tight text-white">RAG Pipeline Profiles</h1>
+          <p className="mt-1 text-xs text-slate-400">
             Configure chunking strategies, vector & keyword retrieval, and Cross-Encoder reranking for A/B testing.
           </p>
         </div>
@@ -181,7 +186,7 @@ export default function PipelinesManagementPage({
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow hover:bg-indigo-500 transition"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 hover:from-indigo-500 hover:to-violet-500 transition"
           >
             <Plus className="h-4 w-4" />
             {showCreateForm ? "Close Form" : "New Pipeline"}
@@ -191,13 +196,13 @@ export default function PipelinesManagementPage({
 
       {/* Alerts */}
       {errorMsg && (
-        <div className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-950/40 px-4 py-2.5 text-xs text-rose-300">
+        <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-950/40 px-4 py-2.5 text-xs text-rose-300">
           <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
           {errorMsg}
         </div>
       )}
       {successMsg && (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-950/40 px-4 py-2.5 text-xs text-emerald-300">
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-4 py-2.5 text-xs text-emerald-300">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
           {successMsg}
         </div>
@@ -205,7 +210,7 @@ export default function PipelinesManagementPage({
 
       {/* A/B Quick Run Bar */}
       {pipelines.length >= 2 && (
-        <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-4">
+        <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/35 to-violet-950/25 p-4 shadow-lg ring-1 ring-white/[0.03]">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3 text-xs">
               <span className="font-semibold text-indigo-300 flex items-center gap-1.5">
@@ -258,7 +263,7 @@ export default function PipelinesManagementPage({
 
       {/* Create Pipeline Form Card */}
       {showCreateForm && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl">
+        <div className="rounded-2xl border border-slate-800/80 bg-[#0b101d]/95 p-6 shadow-2xl ring-1 ring-white/[0.04]">
           <div className="mb-4 border-b border-slate-800 pb-3">
             <h2 className="text-base font-semibold text-white">Create Custom RAG Pipeline</h2>
             <p className="text-xs text-slate-400">
@@ -533,7 +538,7 @@ export default function PipelinesManagementPage({
           return (
             <div
               key={pipe.id}
-              className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-900/70 p-5 shadow-sm transition hover:border-slate-700"
+              className="flex flex-col justify-between rounded-2xl border border-slate-800/80 bg-[#0b101d]/80 p-5 shadow-md ring-1 ring-white/[0.03] transition hover:border-indigo-500/40"
             >
               <div>
                 <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-3">

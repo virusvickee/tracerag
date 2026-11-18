@@ -2,7 +2,52 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: #090d16;
-  color: #f1f5f9;
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: #060912;
+    color: #f1f5f9;
+    background-image:
+      radial-gradient(ellipse 80% 45% at 50% -10%, rgba(99, 102, 241, 0.14), transparent 70%),
+      radial-gradient(ellipse 40% 30% at 85% 0%, rgba(16, 185, 129, 0.06), transparent 60%);
+    background-attachment: fixed;
+  }
+}
+
+/* Crisp custom scrollbars for dark telemetry UI */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0.7;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

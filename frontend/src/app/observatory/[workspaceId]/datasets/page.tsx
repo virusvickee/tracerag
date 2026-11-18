@@ -118,6 +118,14 @@ export default function DatasetsAndCorpusPage({
       setSelectedFile(null);
       const updatedDocs = await fetchDocuments(params.workspaceId);
       setDocuments(updatedDocs);
+      if (!activeDataset) {
+        const ds = await createDataset(params.workspaceId, {
+          name: "Default Golden Dataset",
+          description: "Benchmark test cases for RAG evaluation",
+        });
+        setDatasets([ds]);
+        setActiveDataset(ds);
+      }
     } catch (err: any) {
       setErrorMsg(err.message || "File upload failed");
     } finally {
@@ -221,19 +229,20 @@ export default function DatasetsAndCorpusPage({
 
   if (loading) {
     return (
-      <div className="py-20 text-center text-sm text-slate-400">
-        Loading document corpus & datasets...
+      <div className="flex flex-col items-center justify-center gap-3 py-24 text-slate-400">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+        <span className="text-xs font-medium">Loading document corpus & datasets...</span>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white">Corpus & Golden Benchmark Datasets</h1>
-          <p className="text-xs text-slate-400">
+          <h1 className="text-xl font-bold tracking-tight text-white">Corpus & Golden Benchmark Datasets</h1>
+          <p className="mt-1 text-xs text-slate-400">
             Upload source knowledge documents and curate high-signal evaluation test cases.
           </p>
         </div>
@@ -241,20 +250,20 @@ export default function DatasetsAndCorpusPage({
 
       {/* Alerts */}
       {errorMsg && (
-        <div className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-950/40 px-4 py-2.5 text-xs text-rose-300">
+        <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-950/40 px-4 py-2.5 text-xs text-rose-300">
           <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
           {errorMsg}
         </div>
       )}
       {successMsg && (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-950/40 px-4 py-2.5 text-xs text-emerald-300">
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-4 py-2.5 text-xs text-emerald-300">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
           {successMsg}
         </div>
       )}
 
       {/* Section 1: Document Upload & Knowledge Corpus */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5 shadow-sm">
+      <div className="rounded-2xl border border-slate-800/80 bg-[#0b101d]/80 p-5 shadow-lg ring-1 ring-white/[0.03]">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div>
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
@@ -388,7 +397,7 @@ export default function DatasetsAndCorpusPage({
       </div>
 
       {/* Section 3: Golden Benchmark Test Cases */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-5 shadow-sm">
+      <div className="rounded-2xl border border-slate-800/80 bg-[#0b101d]/80 p-5 shadow-lg ring-1 ring-white/[0.03]">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div>
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">

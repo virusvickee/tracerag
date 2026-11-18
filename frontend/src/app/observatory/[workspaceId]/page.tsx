@@ -1,14 +1,69 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Play, Activity, CheckCircle2, AlertTriangle, Layers, Database } from "lucide-react";
+import {
+  Play,
+  Activity,
+  CheckCircle2,
+  AlertTriangle,
+  Layers,
+  Database,
+  ShieldCheck,
+  Target,
+  Zap,
+  Coins,
+  Search,
+  ArrowUpRight,
+  ArrowDownRight,
+  ChevronRight,
+  Filter,
+  Loader2,
+} from "lucide-react";
 import Link from "next/link";
-import { fetchExperimentResults, fetchWorkspaces, triggerExperimentRun } from "@/lib/api-client";
-import { ExperimentResultsResponse, FailureCategory } from "@/lib/types";
+import {
+  fetchDocuments,
+  fetchExperimentResults,
+  fetchWorkspaces,
+  triggerExperimentRun,
+} from "@/lib/api-client";
+import { ExperimentResultsResponse, FailureCategory, WorkspaceDocument } from "@/lib/types";
 import { useObservatoryStore } from "@/store/useObservatoryStore";
 import { ParetoTradeoffChart } from "@/components/charts/ParetoTradeoffChart";
-import { FailureTaxonomyBarChart, FailureDistributionItem } from "@/components/charts/FailureTaxonomyBarChart";
+import {
+  FailureTaxonomyBarChart,
+  FailureDistributionItem,
+} from "@/components/charts/FailureTaxonomyBarChart";
 import { TraceDiffDrawer } from "@/components/inspector/TraceDiffDrawer";
+
+type TraceFilter = "ALL" | "FAILURES" | "IMPROVED" | "REGRESSIONS" | "PASS";
+
+function FailureBadge({ category }: { category: string }) {
+  const isPass = category === "PASS";
+  const isPending = category === "PENDING";
+
+  const colorClasses = isPass
+    ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30"
+    : isPending
+    ? "bg-slate-800 text-slate-400 ring-1 ring-slate-700"
+    : category === "RANKING_DROP"
+    ? "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30"
+    : category === "CONTEXT_DISTRACTION"
+    ? "bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30"
+    : "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30";
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold tracking-wide ${colorClasses}`}
+    >
+      {isPass ? (
+        <CheckCircle2 className="h-3 w-3" />
+      ) : (
+        <AlertTriangle className="h-3 w-3" />
+      )}
+      {category}
+    </span>
+  );
+}
 
 export default function ObservatoryDashboardPage({
   params,
@@ -16,23 +71,35 @@ export default function ObservatoryDashboardPage({
   params: { workspaceId: string };
 }) {
   const [workspace, setWorkspace] = useState<any>(null);
+  const [documents, setDocuments] = useState<WorkspaceDocument[]>([]);
   const [results, setResults] = useState<ExperimentResultsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [runningStatus, setRunningStatus] = useState<string | null>(null);
+  const [runProgress, setRunProgress] = useState<{ completed: number; total: number } | null>(
+    null
+  );
+  const [traceFilter, setTraceFilter] = useState<TraceFilter>("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { selectedTestCaseId, setSelectedTestCaseId } = useObservatoryStore();
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const workspaces = await fetchWorkspaces();
+      const [workspaces, docs] = await Promise.all([
+        fetchWorkspaces(),
+        fetchDocuments(params.workspaceId).catch(() => []),
+      ]);
       const activeWs =
         workspaces.find((w: any) => w.id === params.workspaceId) || workspaces[0];
       setWorkspace(activeWs);
+      setDocuments(docs);
 
       if (activeWs?.latest_run_id) {
         const expData = await fetchExperimentResults(activeWs.latest_run_id);
         setResults(expData);
+      } else {
+        setResults(null);
       }
     } catch (err) {
       console.error(err);
@@ -45,9 +112,13 @@ export default function ObservatoryDashboardPage({
     loadData();
   }, [params.workspaceId]);
 
+  const canRunEval =
+    Boolean(workspace?.datasets?.[0]) && (workspace?.pipelines?.length ?? 0) >= 2;
+
   const handleRunLiveEval = async () => {
-    if (!workspace?.datasets?.[0] || workspace?.pipelines?.length < 2) return;
-    setRunningStatus("Starting batch evaluation...");
+    if (!canRunEval) return;
+    setRunningStatus("Initializing batch evaluation run...");
+    setRunProgress(null);
     try {
       const { run_id } = await triggerExperimentRun(
         workspace.datasets[0].id,
@@ -59,18 +130,27 @@ export default function ObservatoryDashboardPage({
       evtSource.onmessage = async (event) => {
         const parsed = JSON.parse(event.data);
         if (parsed.type === "progress") {
-          setRunningStatus(`Evaluating: ${parsed.completed} / ${parsed.total} traces graded`);
+          setRunProgress({ completed: parsed.completed, total: parsed.total });
+          setRunningStatus(
+            `Evaluating traces: ${parsed.completed} of ${parsed.total} graded`
+          );
         } else if (parsed.type === "completed") {
           evtSource.close();
           setRunningStatus(null);
+          setRunProgress(null);
           const updated = await fetchExperimentResults(run_id);
           setResults(updated);
         } else if (parsed.type === "error") {
           evtSource.close();
+          setRunProgress(null);
           setRunningStatus(`Error: ${parsed.message}`);
         }
       };
+      evtSource.onerror = () => {
+        evtSource.close();
+      };
     } catch (e: any) {
+      setRunProgress(null);
       setRunningStatus(`Failed: ${e.message}`);
     }
   };
@@ -143,118 +223,293 @@ export default function ObservatoryDashboardPage({
     ];
   }, [results]);
 
+  const filteredCases = useMemo(() => {
+    if (!results) return [];
+    return results.cases.filter((tc) => {
+      const catA = tc.traces.pipeline_a?.failure_category || "PENDING";
+      const catB = tc.traces.pipeline_b?.failure_category || "PENDING";
+
+      if (traceFilter === "FAILURES" && catA === "PASS" && catB === "PASS") return false;
+      if (traceFilter === "IMPROVED" && !(catA !== "PASS" && catB === "PASS")) return false;
+      if (traceFilter === "REGRESSIONS" && !(catA === "PASS" && catB !== "PASS")) return false;
+      if (traceFilter === "PASS" && !(catA === "PASS" && catB === "PASS")) return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return (
+          tc.question.toLowerCase().includes(q) ||
+          tc.difficulty_tag.toLowerCase().includes(q) ||
+          catA.toLowerCase().includes(q) ||
+          catB.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [results, traceFilter, searchQuery]);
+
   const activeCase = useMemo(
     () => results?.cases.find((c) => c.test_case_id === selectedTestCaseId) || null,
     [results, selectedTestCaseId]
   );
 
   if (loading) {
-    return <div className="py-20 text-center text-sm text-slate-400">Loading RAG Observatory...</div>;
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-24 text-slate-400">
+        <Loader2 className="h-6 w-6 animate-spin text-indigo-400" />
+        <span className="text-xs font-medium">Loading RAG Observatory telemetry...</span>
+      </div>
+    );
   }
+
+  const faithDelta = summary ? summary.b.faith - summary.a.faith : 0;
+  const recallDelta = summary ? summary.b.recall - summary.a.recall : 0;
+  const latencyDelta = summary ? summary.b.latency - summary.a.latency : 0;
+  const costDelta = summary ? summary.b.cost - summary.a.cost : 0;
+
+  const hasDocs = documents.length > 0;
+  const hasDataset = (workspace?.datasets?.length ?? 0) > 0;
+  const hasPipelines = (workspace?.pipelines?.length ?? 0) >= 2;
 
   return (
     <div className="space-y-6">
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white">
-            {workspace?.name || "RAG Evaluation Workspace"}
-          </h1>
-          <p className="text-xs text-slate-400">
-            Comparing <span className="font-semibold text-slate-200">{results?.pipeline_a_name || "Pipeline A"}</span> vs.{" "}
-            <span className="font-semibold text-slate-200">{results?.pipeline_b_name || "Pipeline B"}</span>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl font-bold tracking-tight text-white">
+              {workspace?.name || "RAG Evaluation Workspace"}
+            </h1>
+            {results && (
+              <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 font-mono text-[10px] font-medium text-emerald-300">
+                {results.cases.length} traces
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-slate-400">
+            {results ? (
+              <>
+                Comparing{" "}
+                <span className="font-semibold text-indigo-300">
+                  {results.pipeline_a_name}
+                </span>{" "}
+                <span className="text-slate-600 mx-1">vs.</span>
+                <span className="font-semibold text-emerald-300">
+                  {results.pipeline_b_name}
+                </span>
+              </>
+            ) : (
+              "Upload documents, configure A/B pipelines, and run grounded evaluations."
+            )}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Link
             href={`/observatory/${params.workspaceId}/pipelines`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 hover:border-indigo-500"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/80 px-3.5 py-2 text-xs font-medium text-slate-200 transition hover:border-indigo-500/50 hover:bg-slate-800/80"
           >
             <Layers className="h-3.5 w-3.5 text-indigo-400" />
             Pipelines
           </Link>
           <Link
             href={`/observatory/${params.workspaceId}/datasets`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-medium text-slate-200 hover:border-indigo-500"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/80 px-3.5 py-2 text-xs font-medium text-slate-200 transition hover:border-indigo-500/50 hover:bg-slate-800/80"
           >
             <Database className="h-3.5 w-3.5 text-indigo-400" />
             Datasets & Corpus
           </Link>
           <button
             onClick={handleRunLiveEval}
-            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-indigo-500"
+            disabled={!canRunEval || Boolean(runningStatus && runProgress)}
+            title={
+              canRunEval
+                ? "Run live A/B evaluation"
+                : "Upload a document with a golden dataset and create at least 2 pipelines first"
+            }
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:from-indigo-500 hover:to-violet-500 disabled:cursor-not-allowed disabled:opacity-45"
           >
-            <Play className="h-3.5 w-3.5" />
+            <Play className="h-3.5 w-3.5 fill-current" />
             Run Live A/B Evaluation
           </button>
         </div>
       </div>
 
+      {/* Live SSE Progress Banner */}
       {runningStatus && (
-        <div className="flex items-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-950/40 px-4 py-2.5 text-xs text-indigo-200">
-          <Activity className="h-4 w-4 animate-spin text-indigo-400" />
-          {runningStatus}
+        <div className="rounded-2xl border border-indigo-500/35 bg-indigo-950/30 p-4 shadow-lg">
+          <div className="flex items-center justify-between gap-3 text-xs text-indigo-200">
+            <div className="flex items-center gap-2.5 font-medium">
+              <Activity className="h-4 w-4 animate-spin text-indigo-400" />
+              <span>{runningStatus}</span>
+            </div>
+            {runProgress && (
+              <span className="font-mono text-[11px] font-semibold text-indigo-300">
+                {Math.round((runProgress.completed / Math.max(1, runProgress.total)) * 100)}%
+              </span>
+            )}
+          </div>
+          {runProgress && (
+            <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-300"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    Math.round((runProgress.completed / Math.max(1, runProgress.total)) * 100)
+                  )}%`,
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
 
-      {/* KPI Cards */}
+      {/* KPI Delta Cards */}
       {summary && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-            <div className="text-xs text-slate-400">Faithfulness (Pipe B vs A)</div>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-white">{summary.b.faith}%</span>
-              <span className="text-xs font-medium text-emerald-400">
-                ({summary.b.faith - summary.a.faith >= 0 ? "+" : ""}
-                {(summary.b.faith - summary.a.faith).toFixed(1)}%)
+          {/* Faithfulness */}
+          <div className="rounded-2xl border border-slate-800/80 bg-[#0b101d]/80 p-5 shadow-md ring-1 ring-white/[0.03]">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400">Faithfulness</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                <ShieldCheck className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between gap-2">
+              <span className="font-mono text-2xl font-bold tracking-tight text-white tabular-nums">
+                {summary.b.faith}%
+              </span>
+              <span
+                className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold ${
+                  faithDelta >= 0
+                    ? "bg-emerald-500/15 text-emerald-400"
+                    : "bg-rose-500/15 text-rose-400"
+                }`}
+              >
+                {faithDelta >= 0 ? (
+                  <ArrowUpRight className="h-3 w-3" />
+                ) : (
+                  <ArrowDownRight className="h-3 w-3" />
+                )}
+                {faithDelta >= 0 ? "+" : ""}
+                {faithDelta.toFixed(1)}%
               </span>
             </div>
+            <div className="mt-2 text-[11px] text-slate-500 font-mono">
+              Pipe A baseline: {summary.a.faith}%
+            </div>
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-            <div className="text-xs text-slate-400">Context Recall (Pipe B vs A)</div>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-white">{summary.b.recall}%</span>
-              <span className="text-xs font-medium text-emerald-400">
-                ({summary.b.recall - summary.a.recall >= 0 ? "+" : ""}
-                {(summary.b.recall - summary.a.recall).toFixed(1)}%)
+          {/* Context Recall */}
+          <div className="rounded-2xl border border-slate-800/80 bg-[#0b101d]/80 p-5 shadow-md ring-1 ring-white/[0.03]">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400">Context Recall</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400">
+                <Target className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between gap-2">
+              <span className="font-mono text-2xl font-bold tracking-tight text-white tabular-nums">
+                {summary.b.recall}%
+              </span>
+              <span
+                className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold ${
+                  recallDelta >= 0
+                    ? "bg-emerald-500/15 text-emerald-400"
+                    : "bg-rose-500/15 text-rose-400"
+                }`}
+              >
+                {recallDelta >= 0 ? (
+                  <ArrowUpRight className="h-3 w-3" />
+                ) : (
+                  <ArrowDownRight className="h-3 w-3" />
+                )}
+                {recallDelta >= 0 ? "+" : ""}
+                {recallDelta.toFixed(1)}%
               </span>
             </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-            <div className="text-xs text-slate-400">Avg End-to-End Latency</div>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-white">{summary.b.latency} ms</span>
-              <span className="text-xs text-slate-400">vs {summary.a.latency} ms</span>
+            <div className="mt-2 text-[11px] text-slate-500 font-mono">
+              Pipe A baseline: {summary.a.recall}%
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-            <div className="text-xs text-slate-400">Est. Cost / 1k Queries</div>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-white">₹{summary.b.cost}</span>
-              <span className="text-xs text-slate-400">vs ₹{summary.a.cost}</span>
+          {/* Latency */}
+          <div className="rounded-2xl border border-slate-800/80 bg-[#0b101d]/80 p-5 shadow-md ring-1 ring-white/[0.03]">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400">Avg Latency</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400">
+                <Zap className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between gap-2">
+              <span className="font-mono text-2xl font-bold tracking-tight text-white tabular-nums">
+                {summary.b.latency}
+                <span className="ml-1 text-xs font-normal text-slate-400">ms</span>
+              </span>
+              <span
+                className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold ${
+                  latencyDelta <= 0
+                    ? "bg-emerald-500/15 text-emerald-400"
+                    : "bg-amber-500/15 text-amber-300"
+                }`}
+              >
+                {latencyDelta <= 0 ? (
+                  <ArrowDownRight className="h-3 w-3" />
+                ) : (
+                  <ArrowUpRight className="h-3 w-3" />
+                )}
+                {latencyDelta >= 0 ? "+" : ""}
+                {latencyDelta}ms
+              </span>
+            </div>
+            <div className="mt-2 text-[11px] text-slate-500 font-mono">
+              Pipe A baseline: {summary.a.latency} ms
+            </div>
+          </div>
+
+          {/* Cost */}
+          <div className="rounded-2xl border border-slate-800/80 bg-[#0b101d]/80 p-5 shadow-md ring-1 ring-white/[0.03]">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-400">Est. Cost / 1k</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/10 text-violet-400">
+                <Coins className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between gap-2">
+              <span className="font-mono text-2xl font-bold tracking-tight text-white tabular-nums">
+                ₹{summary.b.cost.toFixed(2)}
+              </span>
+              <span
+                className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold ${
+                  costDelta <= 0
+                    ? "bg-emerald-500/15 text-emerald-400"
+                    : "bg-amber-500/15 text-amber-300"
+                }`}
+              >
+                {costDelta >= 0 ? "+" : ""}₹{costDelta.toFixed(2)}
+              </span>
+            </div>
+            <div className="mt-2 text-[11px] text-slate-500 font-mono">
+              Pipe A baseline: ₹{summary.a.cost.toFixed(2)}
             </div>
           </div>
         </div>
       )}
 
-      {/* Dual Analytics: Pareto Trade-off & Failure Taxonomy Stacked Bar Chart */}
+      {/* Dual Analytics Charts */}
       {summary && results && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <ParetoTradeoffChart
             data={[
               {
                 name: results.pipeline_a_name,
-                costInr: summary.a.cost || 38,
+                costInr: summary.a.cost || 0,
                 faithfulnessPct: summary.a.faith,
                 latencyMs: summary.a.latency,
               },
               {
                 name: results.pipeline_b_name,
-                costInr: summary.b.cost || 52,
+                costInr: summary.b.cost || 0,
                 faithfulnessPct: summary.b.faith,
                 latencyMs: summary.b.latency,
               },
@@ -264,104 +519,240 @@ export default function ObservatoryDashboardPage({
         </div>
       )}
 
-      {/* Empty State when no evaluation runs yet */}
+      {/* Smart Onboarding Checklist Empty State */}
       {(!results || results.cases.length === 0) && (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/60 p-12 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400">
-            <Layers className="h-7 w-7" />
+        <div className="rounded-2xl border border-slate-800/80 bg-[#0b101d]/80 p-8 shadow-xl ring-1 ring-white/[0.03]">
+          <div className="mx-auto max-w-2xl text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-400 ring-1 ring-indigo-500/30">
+              <Layers className="h-6 w-6" />
+            </div>
+            <h3 className="mt-4 text-lg font-bold text-white">
+              Ready to Run Your First Benchmark
+            </h3>
+            <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">
+              Complete the three steps below to benchmark retrieval strategies, measure grounded faithfulness, and inspect sentence-level hallucination diffs.
+            </p>
           </div>
-          <h3 className="mt-4 text-base font-semibold text-white">
-            No Evaluation Runs Yet
-          </h3>
-          <p className="mt-2 max-w-md text-xs text-slate-400 leading-relaxed">
-            This workspace is ready for your data. Upload your documents, configure two or more retrieval pipelines, and run an A/B evaluation to inspect Pareto curves and hallucination claim diffs.
-          </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+
+          <div className="mx-auto mt-7 grid max-w-3xl grid-cols-1 gap-4 md:grid-cols-3">
+            {/* Step 1 */}
             <Link
               href={`/observatory/${params.workspaceId}/datasets`}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-xs font-medium text-white transition hover:bg-slate-700"
+              className={`group rounded-xl border p-4 transition ${
+                hasDocs && hasDataset
+                  ? "border-emerald-500/30 bg-emerald-950/15"
+                  : "border-slate-800 bg-slate-950/60 hover:border-indigo-500/50"
+              }`}
             >
-              <Database className="h-4 w-4 text-indigo-400" />
-              1. Upload Documents & Generate Q&A
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] font-semibold uppercase text-slate-500">
+                  Step 01
+                </span>
+                {hasDocs && hasDataset ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                ) : (
+                  <Database className="h-4 w-4 text-indigo-400" />
+                )}
+              </div>
+              <div className="mt-2.5 text-xs font-semibold text-white">
+                Upload Corpus & Q&A
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                {hasDocs
+                  ? `${documents.length} document(s) indexed.`
+                  : "Upload PDF/MD/TXT files and generate synthetic test cases."}
+              </p>
             </Link>
+
+            {/* Step 2 */}
             <Link
               href={`/observatory/${params.workspaceId}/pipelines`}
-              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow transition hover:bg-indigo-500"
+              className={`group rounded-xl border p-4 transition ${
+                hasPipelines
+                  ? "border-emerald-500/30 bg-emerald-950/15"
+                  : "border-slate-800 bg-slate-950/60 hover:border-indigo-500/50"
+              }`}
             >
-              <Layers className="h-4 w-4" />
-              2. Configure A/B Pipelines
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] font-semibold uppercase text-slate-500">
+                  Step 02
+                </span>
+                {hasPipelines ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                ) : (
+                  <Layers className="h-4 w-4 text-indigo-400" />
+                )}
+              </div>
+              <div className="mt-2.5 text-xs font-semibold text-white">
+                Configure 2+ Pipelines
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                {hasPipelines
+                  ? `${workspace.pipelines.length} pipelines configured.`
+                  : "Create Pipeline A & Pipeline B with different chunk/retrieval configs."}
+              </p>
             </Link>
+
+            {/* Step 3 */}
+            <button
+              type="button"
+              disabled={!canRunEval}
+              onClick={handleRunLiveEval}
+              className={`text-left rounded-xl border p-4 transition ${
+                canRunEval
+                  ? "border-indigo-500/50 bg-indigo-950/30 hover:bg-indigo-950/50 cursor-pointer"
+                  : "border-slate-800/60 bg-slate-950/30 opacity-60 cursor-not-allowed"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] font-semibold uppercase text-slate-500">
+                  Step 03
+                </span>
+                <Play className="h-4 w-4 text-indigo-400" />
+              </div>
+              <div className="mt-2.5 text-xs font-semibold text-white">
+                Launch A/B Benchmark
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                {canRunEval
+                  ? "Everything is ready — click here to start live grading."
+                  : "Complete Steps 1 & 2 to unlock live evaluation."}
+              </p>
+            </button>
           </div>
         </div>
       )}
 
       {/* Test Cases Comparison Table */}
       {results && results.cases.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/70">
-          <div className="border-b border-slate-800 px-4 py-3">
-            <h3 className="text-sm font-semibold text-white">
-              Golden Dataset Traces (Click any row to open Split-Screen Grounding Diff)
-            </h3>
+        <div className="overflow-hidden rounded-2xl border border-slate-800/80 bg-[#0b101d]/80 shadow-lg ring-1 ring-white/[0.03]">
+          {/* Table Header + Filter Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 px-5 py-4">
+            <div>
+              <h3 className="text-sm font-semibold text-white">
+                Golden Dataset Traces
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Click any row to open the side-by-side Split-Screen Grounding Diff
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Filter Pills */}
+              <div className="inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-950/80 p-1 text-[11px]">
+                <Filter className="mx-1.5 h-3 w-3 text-slate-500" />
+                {(
+                  [
+                    { id: "ALL", label: "All" },
+                    { id: "FAILURES", label: "Failures" },
+                    { id: "IMPROVED", label: "Improved" },
+                    { id: "REGRESSIONS", label: "Regressions" },
+                    { id: "PASS", label: "All Pass" },
+                  ] as { id: TraceFilter; label: string }[]
+                ).map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setTraceFilter(f.id)}
+                    className={`rounded-md px-2.5 py-1 font-medium transition ${
+                      traceFilter === f.id
+                        ? "bg-indigo-600/25 text-indigo-200 ring-1 ring-indigo-500/40"
+                        : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Filter questions..."
+                  className="w-44 rounded-lg border border-slate-800 bg-slate-950/80 py-1.5 pl-8 pr-3 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+            </div>
           </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-800 bg-slate-950/60 text-slate-400">
+              <thead className="border-b border-slate-800/80 bg-slate-950/50 text-[11px] uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Difficulty</th>
-                  <th className="px-4 py-3">Test Question</th>
-                  <th className="px-4 py-3">Pipeline A Verdict</th>
-                  <th className="px-4 py-3">Pipeline B Verdict</th>
+                  <th className="px-5 py-3 font-medium">Difficulty</th>
+                  <th className="px-5 py-3 font-medium">Test Question</th>
+                  <th className="px-5 py-3 font-medium">
+                    {results.pipeline_a_name || "Pipeline A"}
+                  </th>
+                  <th className="px-5 py-3 font-medium">
+                    {results.pipeline_b_name || "Pipeline B"}
+                  </th>
+                  <th className="px-5 py-3 text-right font-medium">Inspect</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/80">
-                {results.cases.map((tc) => {
-                  const catA = tc.traces.pipeline_a?.failure_category || "PENDING";
-                  const catB = tc.traces.pipeline_b?.failure_category || "PENDING";
-                  return (
-                    <tr
-                      key={tc.test_case_id}
-                      onClick={() => setSelectedTestCaseId(tc.test_case_id)}
-                      className="cursor-pointer transition hover:bg-slate-800/50"
-                    >
-                      <td className="px-4 py-3 font-mono text-[11px] text-indigo-300">
-                        {tc.difficulty_tag}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-100">{tc.question}</td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                            catA === "PASS"
-                              ? "bg-emerald-500/15 text-emerald-400"
-                              : "bg-rose-500/15 text-rose-400"
-                          }`}
-                        >
-                          {catA === "PASS" ? (
-                            <CheckCircle2 className="h-3 w-3" />
-                          ) : (
-                            <AlertTriangle className="h-3 w-3" />
-                          )}
-                          {catA}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                            catB === "PASS"
-                              ? "bg-emerald-500/15 text-emerald-400"
-                              : "bg-rose-500/15 text-rose-400"
-                          }`}
-                        >
-                          {catB === "PASS" ? (
-                            <CheckCircle2 className="h-3 w-3" />
-                          ) : (
-                            <AlertTriangle className="h-3 w-3" />
-                          )}
-                          {catB}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+              <tbody className="divide-y divide-slate-800/60">
+                {filteredCases.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-10 text-center text-xs text-slate-500">
+                      No traces match the current filter criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredCases.map((tc) => {
+                    const traceA = tc.traces.pipeline_a;
+                    const traceB = tc.traces.pipeline_b;
+                    const catA = traceA?.failure_category || "PENDING";
+                    const catB = traceB?.failure_category || "PENDING";
+                    const faithA = traceA ? Math.round(traceA.scores.faithfulness * 100) : null;
+                    const faithB = traceB ? Math.round(traceB.scores.faithfulness * 100) : null;
+
+                    return (
+                      <tr
+                        key={tc.test_case_id}
+                        onClick={() => setSelectedTestCaseId(tc.test_case_id)}
+                        className="group cursor-pointer transition hover:bg-slate-800/40"
+                      >
+                        <td className="px-5 py-3.5 whitespace-nowrap">
+                          <span className="rounded-md border border-slate-800 bg-slate-950 px-2 py-0.5 font-mono text-[10px] text-indigo-300">
+                            {tc.difficulty_tag}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3.5 max-w-md font-medium text-slate-100 leading-snug">
+                          {tc.question}
+                        </td>
+                        <td className="px-5 py-3.5 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <FailureBadge category={catA} />
+                            {faithA !== null && (
+                              <span className="font-mono text-[11px] text-slate-400">
+                                {faithA}%
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <FailureBadge category={catB} />
+                            {faithB !== null && (
+                              <span className="font-mono text-[11px] text-slate-400">
+                                {faithB}%
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 transition group-hover:text-indigo-300">
+                            Diff
+                            <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -369,7 +760,10 @@ export default function ObservatoryDashboardPage({
       )}
 
       {/* Split-Screen Trace Inspector Drawer */}
-      <TraceDiffDrawer testCase={activeCase} onClose={() => setSelectedTestCaseId(null)} />
+      <TraceDiffDrawer
+        testCase={activeCase}
+        onClose={() => setSelectedTestCaseId(null)}
+      />
     </div>
   );
 }

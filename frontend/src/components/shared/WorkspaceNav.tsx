@@ -10,19 +10,22 @@ export function WorkspaceNav({ workspaceId }: { workspaceId: string }) {
 
   const navItems = [
     {
-      label: "Observatory Dashboard",
+      label: "Observatory",
+      sublabel: "A/B Analytics & Diffs",
       href: `/observatory/${workspaceId}`,
       icon: BarChart3,
       exact: true,
     },
     {
-      label: "Pipelines A/B Config",
+      label: "Pipelines",
+      sublabel: "Chunking & Retrieval",
       href: `/observatory/${workspaceId}/pipelines`,
       icon: Layers,
       exact: false,
     },
     {
-      label: "Corpus & Golden Datasets",
+      label: "Datasets & Corpus",
+      sublabel: "Docs & Golden Q&A",
       href: `/observatory/${workspaceId}/datasets`,
       icon: Database,
       exact: false,
@@ -30,8 +33,8 @@ export function WorkspaceNav({ workspaceId }: { workspaceId: string }) {
   ];
 
   return (
-    <nav className="mb-6 flex border-b border-slate-800">
-      <div className="flex gap-2">
+    <div className="mb-7 flex items-center justify-between border-b border-slate-800/70 pb-4">
+      <nav className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-slate-800/80 bg-slate-950/70 p-1">
         {navItems.map((item) => {
           const isActive = item.exact
             ? pathname === item.href
@@ -42,18 +45,18 @@ export function WorkspaceNav({ workspaceId }: { workspaceId: string }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-medium transition ${
+              className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-medium transition ${
                 isActive
-                  ? "border-indigo-500 text-indigo-400 bg-indigo-500/5 font-semibold"
-                  : "border-transparent text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                  ? "bg-indigo-600/20 text-indigo-200 shadow-sm ring-1 ring-indigo-500/35 font-semibold"
+                  : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-200"
               }`}
             >
-              <Icon className={`h-4 w-4 ${isActive ? "text-indigo-400" : "text-slate-500"}`} />
-              {item.label}
+              <Icon className={`h-3.5 w-3.5 ${isActive ? "text-indigo-400" : "text-slate-500"}`} />
+              <span>{item.label}</span>
             </Link>
           );
         })}
-      </div>
-    </nav>
+      </nav>
+    </div>
   );
 }
