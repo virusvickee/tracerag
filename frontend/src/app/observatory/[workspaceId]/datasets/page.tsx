@@ -277,23 +277,56 @@ export default function DatasetsAndCorpusPage({
         </div>
 
         {/* Upload form */}
-        <form onSubmit={handleFileUpload} className="mb-5 flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-[280px]">
-            <input
-              type="file"
-              accept=".pdf,.md,.txt"
-              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-              className="block w-full text-xs text-slate-400 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-200 hover:file:bg-slate-700"
-            />
+        <form onSubmit={handleFileUpload} className="mb-6">
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="relative flex-1 w-full">
+              <input
+                type="file"
+                id="doc-file-input"
+                accept=".pdf,.md,.txt"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                className="hidden"
+              />
+              <label
+                htmlFor="doc-file-input"
+                className="flex items-center justify-between gap-3 w-full cursor-pointer rounded-xl border border-dashed border-slate-700/80 bg-slate-950/60 px-4 py-3 text-xs text-slate-300 transition hover:border-indigo-500/60 hover:bg-slate-900/40"
+              >
+                <div className="flex items-center gap-2.5 truncate">
+                  <FileUp className="h-4 w-4 shrink-0 text-indigo-400" />
+                  {selectedFile ? (
+                    <span className="font-semibold text-white truncate">
+                      {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                    </span>
+                  ) : (
+                    <span>
+                      <strong className="text-white">Click to select document</strong> or drag and drop (.PDF, .MD, .TXT)
+                    </span>
+                  )}
+                </div>
+                {selectedFile && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setSelectedFile(null);
+                    }}
+                    className="rounded p-1 text-slate-400 hover:text-white"
+                  >
+                    Clear
+                  </button>
+                )}
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={!selectedFile || uploading}
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-3 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:from-indigo-500 hover:to-violet-500 disabled:opacity-40"
+            >
+              <Upload className="h-4 w-4" />
+              {uploading ? "Chunking & Ingesting..." : "Upload & Index"}
+            </button>
           </div>
-          <button
-            type="submit"
-            disabled={!selectedFile || uploading}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-indigo-500 disabled:opacity-50 transition"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            {uploading ? "Ingesting..." : "Upload Document"}
-          </button>
         </form>
 
         {/* Documents Table */}

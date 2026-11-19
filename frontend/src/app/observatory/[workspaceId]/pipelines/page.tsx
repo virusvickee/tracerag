@@ -210,39 +210,43 @@ export default function PipelinesManagementPage({
 
       {/* A/B Quick Run Bar */}
       {pipelines.length >= 2 && (
-        <div className="rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/35 to-violet-950/25 p-4 shadow-lg ring-1 ring-white/[0.03]">
+        <div className="rounded-2xl border border-indigo-500/35 bg-gradient-to-r from-indigo-950/40 via-slate-900/60 to-violet-950/30 p-5 shadow-xl ring-1 ring-white/[0.04]">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3 text-xs">
               <span className="font-semibold text-indigo-300 flex items-center gap-1.5">
-                <Play className="h-3.5 w-3.5" /> Quick A/B Run:
+                <Play className="h-4 w-4 fill-current text-indigo-400" /> Quick A/B Benchmark:
               </span>
               <div className="flex items-center gap-2">
-                <span className="text-slate-400">A:</span>
+                <span className="rounded bg-indigo-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-indigo-300">
+                  A
+                </span>
                 <select
                   value={selectedPipelineA}
                   onChange={(e) => setSelectedPipelineA(e.target.value)}
-                  className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-white focus:border-indigo-500"
+                  className="rounded-xl border border-slate-700 bg-slate-950/90 px-3 py-1.5 text-xs font-medium text-white shadow-sm focus:border-indigo-500 focus:outline-none"
                 >
                   {pipelines.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name}
+                      {p.name} ({p.retrieval_mode})
                     </option>
                   ))}
                 </select>
               </div>
 
-              <span className="text-slate-500 font-bold">vs</span>
+              <span className="font-mono text-xs font-bold text-slate-500">vs</span>
 
               <div className="flex items-center gap-2">
-                <span className="text-slate-400">B:</span>
+                <span className="rounded bg-emerald-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
+                  B
+                </span>
                 <select
                   value={selectedPipelineB}
                   onChange={(e) => setSelectedPipelineB(e.target.value)}
-                  className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-white focus:border-indigo-500"
+                  className="rounded-xl border border-slate-700 bg-slate-950/90 px-3 py-1.5 text-xs font-medium text-white shadow-sm focus:border-indigo-500 focus:outline-none"
                 >
                   {pipelines.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name}
+                      {p.name} ({p.retrieval_mode})
                     </option>
                   ))}
                 </select>
@@ -252,10 +256,10 @@ export default function PipelinesManagementPage({
             <button
               onClick={handleStartABRun}
               disabled={launchingEval || selectedPipelineA === selectedPipelineB}
-              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition shadow"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-600/25 transition hover:from-indigo-500 hover:to-violet-500 disabled:opacity-40"
             >
-              <Play className="h-3.5 w-3.5" />
-              {launchingEval ? "Launching..." : "Run A/B Benchmarking"}
+              <Play className="h-3.5 w-3.5 fill-current" />
+              {launchingEval ? "Launching Benchmark..." : "Run A/B Benchmarking"}
             </button>
           </div>
         </div>
@@ -264,11 +268,65 @@ export default function PipelinesManagementPage({
       {/* Create Pipeline Form Card */}
       {showCreateForm && (
         <div className="rounded-2xl border border-slate-800/80 bg-[#0b101d]/95 p-6 shadow-2xl ring-1 ring-white/[0.04]">
-          <div className="mb-4 border-b border-slate-800 pb-3">
-            <h2 className="text-base font-semibold text-white">Create Custom RAG Pipeline</h2>
-            <p className="text-xs text-slate-400">
-              Customize chunk boundary rules, retrieval fusion mode, and Cross-Encoder reranking.
-            </p>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <h2 className="text-base font-semibold text-white">Create Custom RAG Pipeline</h2>
+              <p className="text-xs text-slate-400">
+                Customize chunk boundary rules, retrieval fusion mode, and Cross-Encoder reranking.
+              </p>
+            </div>
+
+            {/* Quick 1-Click Presets */}
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className="text-slate-500 font-medium mr-1 flex items-center gap-1">
+                <Sparkles className="h-3 w-3 text-indigo-400" /> Presets:
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setName("Production Hybrid RRF + Reranker");
+                  setChunkStrategy("RECURSIVE");
+                  setChunkSize(512);
+                  setChunkOverlap(64);
+                  setRetrievalMode("HYBRID");
+                  setTopK(5);
+                  setUseReranker(true);
+                }}
+                className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-indigo-200 hover:bg-indigo-500/20 transition"
+              >
+                Hybrid + Reranker
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setName("Dense Vector Baseline");
+                  setChunkStrategy("FIXED");
+                  setChunkSize(512);
+                  setChunkOverlap(0);
+                  setRetrievalMode("DENSE");
+                  setTopK(3);
+                  setUseReranker(false);
+                }}
+                className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-purple-200 hover:bg-purple-500/20 transition"
+              >
+                Dense Baseline
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setName("Fine-Grained High Recall");
+                  setChunkStrategy("RECURSIVE");
+                  setChunkSize(256);
+                  setChunkOverlap(32);
+                  setRetrievalMode("HYBRID");
+                  setTopK(8);
+                  setUseReranker(true);
+                }}
+                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-emerald-200 hover:bg-emerald-500/20 transition"
+              >
+                Fine-Grained 256
+              </button>
+            </div>
           </div>
 
           <form onSubmit={handleCreatePipeline} className="space-y-5">
@@ -598,34 +656,34 @@ export default function PipelinesManagementPage({
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center justify-between border-t border-slate-800/80 pt-3 text-[11px] text-slate-500">
-                <span>Model: {pipe.model_name}</span>
-                <div className="flex gap-2">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/80 pt-3 text-[11px] text-slate-400">
+                <span className="font-mono text-slate-500">Model: {pipe.model_name}</span>
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
                       setSelectedPipelineA(pipe.id);
                       setSuccessMsg(`Set "${pipe.name}" as Pipeline A.`);
                     }}
-                    className={`rounded px-2 py-1 text-[11px] font-medium transition ${
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                       selectedPipelineA === pipe.id
-                        ? "bg-indigo-600 text-white"
-                        : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                        ? "bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400"
+                        : "border border-slate-700/80 bg-slate-800/80 text-slate-300 hover:border-indigo-500/50 hover:bg-slate-700"
                     }`}
                   >
-                    Select as A
+                    {selectedPipelineA === pipe.id ? "✓ Active as A" : "Set as A"}
                   </button>
                   <button
                     onClick={() => {
                       setSelectedPipelineB(pipe.id);
                       setSuccessMsg(`Set "${pipe.name}" as Pipeline B.`);
                     }}
-                    className={`rounded px-2 py-1 text-[11px] font-medium transition ${
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                       selectedPipelineB === pipe.id
-                        ? "bg-indigo-600 text-white"
-                        : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                        ? "bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400"
+                        : "border border-slate-700/80 bg-slate-800/80 text-slate-300 hover:border-emerald-500/50 hover:bg-slate-700"
                     }`}
                   >
-                    Select as B
+                    {selectedPipelineB === pipe.id ? "✓ Active as B" : "Set as B"}
                   </button>
                 </div>
               </div>
