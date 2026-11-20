@@ -386,41 +386,40 @@ export default function DatasetsAndCorpusPage({
       </div>
 
       {/* Section 2: 1-Click Synthetic Q&A Generator */}
-      <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="rounded-2xl border border-indigo-500/35 bg-gradient-to-r from-indigo-950/40 via-[#0c1122] to-violet-950/30 p-6 shadow-xl ring-1 ring-white/[0.04]">
+        <div className="flex flex-wrap items-center justify-between gap-5">
           <div className="max-w-xl">
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-600 text-white">
-                <Sparkles className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 ring-1 ring-indigo-500/30">
+                <Sparkles className="h-4 w-4" />
               </span>
-              <h2 className="text-sm font-semibold text-white">
+              <h2 className="text-sm font-bold text-white">
                 1-Click Synthetic Q&A Generator
               </h2>
             </div>
-            <p className="mt-1 text-xs text-indigo-200/80 leading-relaxed">
-              Synthesize diverse test questions (Single-Hop, Multi-Hop, and Unanswerable queries)
-              strictly grounded in your uploaded documents using LLM structured outputs.
+            <p className="mt-1.5 text-xs text-indigo-200/80 leading-relaxed">
+              Synthesize challenging benchmark test cases (Single-Hop, Multi-Hop, and Unanswerable queries) strictly grounded in your indexed document chunks via Pydantic structured outputs.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-indigo-300 font-medium">Count:</label>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 rounded-xl border border-indigo-500/30 bg-slate-950/80 px-3 py-1.5 text-xs">
+              <label className="text-indigo-300 font-medium text-[11px]">Generate:</label>
               <select
                 value={synthCount}
                 onChange={(e) => setSynthCount(Number(e.target.value))}
-                className="rounded-lg border border-indigo-500/40 bg-slate-900 px-2.5 py-1.5 text-xs text-white focus:border-indigo-500"
+                className="bg-transparent font-semibold text-white focus:outline-none cursor-pointer"
               >
-                <option value={3}>3 test cases</option>
-                <option value={5}>5 test cases</option>
-                <option value={10}>10 test cases</option>
+                <option value={3} className="bg-slate-900 text-white">3 cases</option>
+                <option value={5} className="bg-slate-900 text-white">5 cases</option>
+                <option value={10} className="bg-slate-900 text-white">10 cases</option>
               </select>
             </div>
 
             <button
               onClick={handleGenerateSynthetic}
               disabled={generating || documents.length === 0}
-              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-indigo-500 disabled:opacity-50 transition"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:from-indigo-500 hover:to-violet-500 disabled:opacity-40"
             >
               <Sparkles className="h-3.5 w-3.5" />
               {generating ? "Synthesizing Test Cases..." : "Generate Synthetic Q&A"}
