@@ -14,6 +14,9 @@ import {
   Filter,
   FileUp,
   File,
+  Copy,
+  Check,
+  Search,
 } from "lucide-react";
 import {
   createDataset,
@@ -60,8 +63,15 @@ export default function DatasetsAndCorpusPage({
   // Filters & Notifications
   const [filterDifficulty, setFilterDifficulty] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const handleCopyQuestion = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -226,6 +236,15 @@ export default function DatasetsAndCorpusPage({
       return matchesDifficulty && matchesSearch;
     });
   }, [testCases, filterDifficulty, searchQuery]);
+
+  const difficultyCounts = useMemo(() => {
+    return {
+      ALL: testCases.length,
+      SINGLE_HOP: testCases.filter((t) => t.difficulty_tag === "SINGLE_HOP").length,
+      MULTI_HOP: testCases.filter((t) => t.difficulty_tag === "MULTI_HOP").length,
+      UNANSWERABLE: testCases.filter((t) => t.difficulty_tag === "UNANSWERABLE").length,
+    };
+  }, [testCases]);
 
   if (loading) {
     return (
@@ -541,71 +560,102 @@ export default function DatasetsAndCorpusPage({
         )}
 
         {/* Filter Bar */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="text-slate-400">Filter:</span>
-            {["ALL", "SINGLE_HOP", "MULTI_HOP", "UNANSWERABLE"].map((tag) => (
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="inline-flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950/70 p-1">
+            <Filter className="mx-2 h-3.5 w-3.5 text-slate-500" />
+            {[
+              { id: "ALL", label: "All", count: difficultyCounts.ALL },
+              { id: "SINGLE_HOP", label: "Single-Hop", count: difficultyCounts.SINGLE_HOP },
+              { id: "MULTI_HOP", label: "Multi-Hop", count: difficultyCounts.MULTI_HOP },
+              { id: "UNANSWERABLE", label: "Unanswerable", count: difficultyCounts.UNANSWERABLE },
+            ].map((f) => (
               <button
-                key={tag}
-                onClick={() => setFilterDifficulty(tag)}
-                className={`rounded px-2.5 py-1 text-[11px] font-medium transition ${
-                  filterDifficulty === tag
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                key={f.id}
+                onClick={() => setFilterDifficulty(f.id)}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
+                  filterDifficulty === f.id
+                    ? "bg-indigo-600 text-white shadow-sm font-semibold"
+                    : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-200"
                 }`}
               >
-                {tag}
+                <span>{f.label}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] ${
+                    filterDifficulty === f.id
+                      ? "bg-white/20 text-white"
+                      : "bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  {f.count}
+                </span>
               </button>
             ))}
           </div>
 
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search test questions..."
-            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
-          />
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search test questions..."
+              className="w-56 rounded-xl border border-slate-800 bg-slate-950/90 py-1.5 pl-8 pr-3 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/40"
+            />
+          </div>
         </div>
 
         {/* Test Cases Table */}
         {filteredCases.length > 0 ? (
-          <div className="overflow-x-auto rounded-lg border border-slate-800">
+          <div className="overflow-x-auto rounded-xl border border-slate-800/80">
             <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-800 bg-slate-950/60 text-slate-400">
+              <thead className="border-b border-slate-800/80 bg-slate-950/60 text-[11px] uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th className="px-4 py-2.5 w-28">Difficulty</th>
-                  <th className="px-4 py-2.5">Question</th>
-                  <th className="px-4 py-2.5">Ground Truth</th>
-                  <th className="px-4 py-2.5 text-right w-16">Actions</th>
+                  <th className="px-4 py-3 w-32 font-medium">Difficulty</th>
+                  <th className="px-4 py-3 font-medium">Test Question</th>
+                  <th className="px-4 py-3 font-medium">Ground Truth</th>
+                  <th className="px-4 py-3 text-right w-20 font-medium">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/80">
+              <tbody className="divide-y divide-slate-800/60">
                 {filteredCases.map((tc) => (
-                  <tr key={tc.id} className="hover:bg-slate-800/40 transition">
-                    <td className="px-4 py-3 align-top">
+                  <tr key={tc.id} className="group hover:bg-slate-800/30 transition">
+                    <td className="px-4 py-3.5 align-top whitespace-nowrap">
                       <span
-                        className={`inline-block rounded px-2 py-0.5 font-mono text-[10px] font-semibold ${
+                        className={`inline-block rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wide ${
                           tc.difficulty_tag === "SINGLE_HOP"
-                            ? "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30"
+                            ? "bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30"
                             : tc.difficulty_tag === "MULTI_HOP"
-                            ? "bg-purple-500/15 text-purple-300 border border-purple-500/30"
-                            : "bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                            ? "bg-purple-500/15 text-purple-300 ring-1 ring-purple-500/30"
+                            : "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30"
                         }`}
                       >
                         {tc.difficulty_tag}
                       </span>
                     </td>
-                    <td className="px-4 py-3 align-top font-medium text-slate-100">
-                      {tc.question}
+                    <td className="px-4 py-3.5 align-top font-medium text-slate-100 max-w-sm leading-snug">
+                      <div className="flex items-start justify-between gap-2">
+                        <span>{tc.question}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyQuestion(tc.id, tc.question)}
+                          className="shrink-0 rounded p-1 text-slate-500 opacity-0 transition group-hover:opacity-100 hover:bg-slate-800 hover:text-slate-300"
+                          title="Copy question text"
+                        >
+                          {copiedId === tc.id ? (
+                            <Check className="h-3 w-3 text-emerald-400" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </button>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 align-top text-slate-300 leading-relaxed">
+                    <td className="px-4 py-3.5 align-top text-slate-300 leading-relaxed text-xs">
                       {tc.ground_truth}
                     </td>
-                    <td className="px-4 py-3 align-top text-right">
+                    <td className="px-4 py-3.5 align-top text-right whitespace-nowrap">
                       <button
                         onClick={() => handleDeleteTestCase(tc.id)}
-                        className="rounded p-1 text-slate-500 hover:text-rose-400"
+                        className="rounded-lg p-1.5 text-slate-500 transition hover:bg-rose-500/10 hover:text-rose-400"
                         title="Delete test case"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
