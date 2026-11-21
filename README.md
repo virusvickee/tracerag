@@ -71,7 +71,10 @@
 
 - **Exponential Backoff with Jitter**: Robust retries for all OpenAI embeddings, completions, and judge calls (`app.core.retry.call_with_retry`) protecting against HTTP 429 rate limits, timeouts, and transient network drops.
 - **Demo Mode Sliding Window Rate Limiting**: In-memory rate limiter enforcing a maximum of 5 runs per 10 minutes when no `X-Provider-Key` header is supplied, preventing abuse of shared demo credentials.
-- **Zero-Setup Demo Workspace**: Pre-seeded with AcmeCloud Enterprise billing policies, API rate limit rules, and pre-computed evaluation diffs ready to inspect on initial startup.
+- **Clean Slate & Dynamic Workspace Onboarding**: Starts with a pristine database with zero mock data. Create isolated workspaces, ingest your real documents, synthesize golden test cases, and benchmark custom architectures.
+- **1-Click Architecture Presets**: Pre-configured configurations for `Production Hybrid RRF + Reranker`, `Dense Vector Baseline`, and `Fine-Grained High Recall`.
+- **Benchmark Report Exporter**: Export evaluation results and failure breakdowns to standard Markdown (`.md`) reports with 1 click.
+- **Top-Bar Workspace Switcher**: Quick dropdown to switch between workspaces or create a new workspace from any view.
 - **Client-Side BYOK Security**: API keys are stored strictly in browser `sessionStorage` and transmitted solely in request headers (`X-Provider-Key`).
 
 ---
